@@ -31,12 +31,13 @@ RUN go mod download -x
 RUN CGO_ENABLED=0 \
   go build \
   -a \
+  -mod=vendor \
   -installsuffix cgo \
-  -ldflags '-w -s --extldflags "-static -fpic"' \
   -tags netgo \
+  -ldflags '-w -s --extldflags "-static -fpic"' \
+  -ldflags "-X main.version=${GO_PKG_RELEASE_VERSION}" \
+  -ldflags "-X main.buildSource=Docker" \
   -o ${GO_ENV_ROOT_BUILD_BIN_PATH} \
-  -X main.version=${GO_PKG_RELEASE_VERSION} \
-  -X main.buildSource=Docker \
   ${GO_ENV_ROOT_BUILD_ENTRANCE}
 
 # https://hub.docker.com/_/alpine

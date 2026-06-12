@@ -36,5 +36,8 @@ $ lazydocker --help
 
 ## features
 
-- [ ] foo
-- [ ] bar
+- [x] support platforms:
+  - linux/amd64
+  - linux/386
+  - linux/arm64/v8
+  - linux/arm/v7
