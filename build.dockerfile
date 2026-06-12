@@ -32,10 +32,11 @@ RUN CGO_ENABLED=0 \
   go build \
   -a \
   -mod=vendor \
-  -ldflags '-w -s' \
+  -installsuffix cgo \
   -tags netgo \
-  -X main.version=${GO_PKG_RELEASE_VERSION} \
-  -X main.buildSource=Docker \
+  -ldflags '-w -s --extldflags "-static -fpic"' \
+  -ldflags "-X main.version=${GO_PKG_RELEASE_VERSION}" \
+  -ldflags "-X main.buildSource=Docker" \
   -o ${GO_ENV_ROOT_BUILD_BIN_PATH} \
   ${GO_ENV_ROOT_BUILD_ENTRANCE}
 
