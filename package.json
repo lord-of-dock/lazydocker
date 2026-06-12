@@ -1,6 +1,6 @@
 {
   "name": "lazydocker",
-  "version": "1.0.0",
+  "version": "0.25.2",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lord-of-dock/lazydocker.git"
