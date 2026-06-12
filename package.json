@@ -1,0 +1,20 @@
+{
+  "name": "lazydocker",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lord-of-dock/lazydocker.git"
+  },
+  "keywords": [
+    "alpine",
+    "make",
+    "docker",
+    "action"
+  ],
+  "author": "sinlov",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/lord-of-dock/lazydocker/issues"
+  },
+  "homepage": "https://github.com/lord-of-dock/lazydocker#readme"
+}
