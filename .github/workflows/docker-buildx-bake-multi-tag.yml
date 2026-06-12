@@ -78,7 +78,7 @@ jobs:
         name: Create matrix
         id: platforms
         run: |
-          echo "matrix=$(docker buildx bake ${{ inputs.docker_bake_targets }}${{ inputs.docker_bake_matrix_target_postfix }} --print | jq -cr '.target."${{ inputs.docker_bake_targets }}${{ inputs.docker_bake_matrix_target_postfix }}".platforms')" >>${GITHUB_OUTPUT}
+          echo "matrix=$(docker buildx bake ${{ inputs.docker_bake_targets }}${{inputs.docker_bake_matrix_target_postfix}} --print | jq -cr '.target."${{ inputs.docker_bake_targets }}${{inputs.docker_bake_matrix_target_postfix}}".platforms')" >>${GITHUB_OUTPUT}
       -
         name: Show matrix
         run: |
@@ -120,16 +120,26 @@ jobs:
       -
         name: Rename meta bake definition file
         run: |
-          mkdir -p "${{ runner.temp }}/${{ inputs.docker_bake_targets }}"
-          mv "${{ steps.meta.outputs.bake-file }}" "${{ runner.temp }}/${{ inputs.docker_bake_targets }}/bake-meta.json"
+          mkdir -p "${{ runner.temp }}/${{ inputs.docker_bake_targets}}"
+          jq '
+            def scrub:
+              if type == "object" then
+                with_entries(select(.key != "buildx.build.provenance") | .value |= scrub)
+              elif type == "array" then
+                map(scrub)
+              else
+                .
+              end;
+            scrub
+          ' "${{ steps.meta.outputs.bake-file }}" > "${{ runner.temp }}/${{ inputs.docker_bake_targets}}/bake-meta.json"
 
       -
         name: Upload meta bake definition
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ inputs.push_remote_flag }}
         with:
           name: bake-tag-meta-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.docker_bake_targets }}-${{ env.PLATFORM_PAIR }}
-          path: ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/bake-meta.json
+          path: ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/bake-meta.json
           overwrite: true
           if-no-files-found: error
           retention-days: 1
@@ -166,9 +176,9 @@ jobs:
         name: check build files
         run: |
           echo "docker_bake_config_file_path: ${{ inputs.docker_bake_config_file_path }}"
-          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets }}
-          echo "show: ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/bake-meta.json"
-          cat ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/bake-meta.json
+          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets}}
+          echo "show: ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/bake-meta.json"
+          cat ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/bake-meta.json
 
       -
         name: Build
@@ -178,7 +188,7 @@ jobs:
         with:
           files: |
             cwd://${{ inputs.docker_bake_config_file_path }}
-            cwd://${{ runner.temp }}/${{ inputs.docker_bake_targets }}/bake-meta.json
+            cwd://${{ runner.temp }}/${{ inputs.docker_bake_targets}}/bake-meta.json
           targets: ${{ inputs.docker_bake_targets }}
           no-cache: ${{ inputs.docker-build-no-cache }}
           provenance: false
@@ -193,24 +203,31 @@ jobs:
 
       - name: Extract container image digest from bake output
         id: bake-output-container-image-digest
+        env:
+          BAKE_METADATA: ${{ steps.bake.outputs.metadata }}
         run: |
-          echo "digest=$(echo '${{ steps.bake.outputs.metadata }}' | jq -cr '.["${{ inputs.docker_bake_targets }}"]["containerimage.digest"]')" >>$GITHUB_OUTPUT
+          digest="$(jq -cr --arg target "${{ inputs.docker_bake_targets }}" '.[$target]["containerimage.digest"] // empty' <<<"$BAKE_METADATA")"
+          if [ -z "$digest" ] || [ "$digest" = "null" ]; then
+            echo "failed to extract container image digest from bake output metadata"
+            exit 1
+          fi
+          echo "digest=$digest" >>$GITHUB_OUTPUT
 
       -
         name: Export digest
         run: |
-          mkdir -p ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/digests
+          mkdir -p ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/digests
           digest="${{ steps.bake-output-container-image-digest.outputs.digest }}"
-          touch "${{ runner.temp }}/${{ inputs.docker_bake_targets }}/digests/${digest#sha256:}"
-          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/digests
+          touch "${{ runner.temp }}/${{ inputs.docker_bake_targets}}/digests/${digest#sha256:}"
+          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/digests
 
       -
         name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ inputs.push_remote_flag }}
         with:
           name: digests-tag-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.docker_bake_targets }}-${{ env.PLATFORM_PAIR }}
-          path: ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/digests/*
+          path: ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/digests/*
           overwrite: true
           if-no-files-found: error
           retention-days: 1
@@ -218,8 +235,8 @@ jobs:
       -
         name: check temp config files
         run: |
-          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets }}
-          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/digests/
+          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets}}
+          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/digests/
 
 
   merge:
@@ -232,34 +249,34 @@ jobs:
       -
         name: check temp path
         run: |
-          mkdir -p "${{ runner.temp }}/${{ inputs.docker_bake_targets }}"
-          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets }}
+          mkdir -p "${{ runner.temp }}/${{ inputs.docker_bake_targets}}"
+          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets}}
 
       -
         name: Download meta bake definition
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           # name: bake-meta
           ## https://github.com/actions/download-artifact/tree/v4?tab=readme-ov-file#breaking-changes
           pattern: bake-tag-meta-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.docker_bake_targets }}-*
-          path: ${{ runner.temp }}/${{ inputs.docker_bake_targets }}
+          path: ${{ runner.temp }}/${{ inputs.docker_bake_targets}}
           merge-multiple: true
 
       -
         name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           # name: digests
           ## https://github.com/actions/download-artifact/tree/v4?tab=readme-ov-file#breaking-changes
           pattern: digests-tag-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.docker_bake_targets }}-*
-          path: ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/digests/
+          path: ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/digests/
           merge-multiple: true
 
       -
         name: check temp config files
         run: |
-          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets }}
-          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/digests/
+          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets}}
+          ls -al ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/digests/
 
       -
         name: Set up Docker Buildx
@@ -282,15 +299,15 @@ jobs:
 
       -
         name: Create manifest list and push
-        working-directory: ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/digests/
+        working-directory: ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/digests/
         run: |
-          docker buildx imagetools create $(jq -cr '.target."docker-metadata-action".tags | map(select(startswith("${{ vars.ENV_DOCKERHUB_OWNER }}/${{ vars.ENV_DOCKERHUB_REPO_NAME }}")) | "-t " + .) | join(" ")' ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/bake-meta.json) \
+          docker buildx imagetools create $(jq -cr '.target."docker-metadata-action".tags | map(select(startswith("${{ vars.ENV_DOCKERHUB_OWNER }}/${{ vars.ENV_DOCKERHUB_REPO_NAME }}")) | "-t " + .) | join(" ")' ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/bake-meta.json) \
             $(printf '${{ vars.ENV_DOCKERHUB_OWNER }}/${{ vars.ENV_DOCKERHUB_REPO_NAME }}@sha256:%s ' *)
-          docker buildx imagetools create $(jq -cr '.target."docker-metadata-action".tags | map(select(startswith("ghcr.io/${{ inputs.ghcr_package_owner_name }}/${{ vars.ENV_DOCKERHUB_REPO_NAME }}")) | "-t " + .) | join(" ")' ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/bake-meta.json) \
+          docker buildx imagetools create $(jq -cr '.target."docker-metadata-action".tags | map(select(startswith("ghcr.io/${{ inputs.ghcr_package_owner_name }}/${{ vars.ENV_DOCKERHUB_REPO_NAME }}")) | "-t " + .) | join(" ")' ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/bake-meta.json) \
             $(printf 'ghcr.io/${{ inputs.ghcr_package_owner_name }}/${{ vars.ENV_DOCKERHUB_REPO_NAME }}@sha256:%s ' *)
       -
         name: Inspect image
         run: |
-          tag=$(jq -r '.target."docker-metadata-action".args.DOCKER_META_VERSION' ${{ runner.temp }}/${{ inputs.docker_bake_targets }}/bake-meta.json)
+          tag=$(jq -r '.target."docker-metadata-action".args.DOCKER_META_VERSION' ${{ runner.temp }}/${{ inputs.docker_bake_targets}}/bake-meta.json)
           docker buildx imagetools inspect ${{ vars.ENV_DOCKERHUB_OWNER }}/${{ vars.ENV_DOCKERHUB_REPO_NAME }}:${tag}
           docker buildx imagetools inspect ghcr.io/${{ inputs.ghcr_package_owner_name }}/${{ vars.ENV_DOCKERHUB_REPO_NAME }}:${tag}
