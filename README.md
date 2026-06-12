@@ -41,4 +41,3 @@ $ lazydocker --help
   - linux/386
   - linux/arm64/v8
   - linux/arm/v7
-  - linux/arm/v6
